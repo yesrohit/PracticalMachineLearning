@@ -1,0 +1,78 @@
+---
+title: "Practical Machine Learning Project"
+author: "Rohit Mittal"
+date: "November 22, 2015"
+output: html_document
+---
+
+This project is for Practical Machine Learning Class. A training dataset was provided to learn the quality of exercise using dumbell. The test data was then used to come up with a prediction. The prediction was a class A-E. 
+
+The method used for machine learning is "GBM" or the Gradient Boosted Model. Random forest may also have been used. 
+
+The following is the workflow:
+
+Read the dataset. 
+The training data for this project was available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data was available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+library(caret)
+
+setwd('C:/Users/RohitMittal/Desktop/Practical Machine Learning')
+data = read.csv("pml-training.csv")
+TestData = read.csv("pml-testing.csv")
+
+```
+
+Now, from the read dataset 'data' (training set), we will remove all the rows containing any blank rows or NAs. Then, we will remove the columns containing time stamps. 
+
+```{r}
+dataNoNA=data #Store data in dataNoNA
+dataNoNA[dataNoNA==""]<-NA #Replace the blanks by NA
+dataNoNA=dataNoNA[,colSums(is.na(dataNoNA))==0] #Take only those columns where the total number of NAs are 0.
+CleanData=dataNoNA[,-c(1,3,4,5,6,7)] #Remove columns with user number and timestamps
+ColsChosen=sapply(colnames(data), function(x) grep(x,colnames(CleanData))) #Mark the final chosen columns in original dataset. This will help us quickly process the test file. 
+
+```
+
+Create partition for testing and testing with 75% of the dataset in training set. 
+```{r}
+
+inTrain = createDataPartition(CleanData$classe, p=0.75,list=FALSE) #Create partition for training and testing with 75% in training set
+Training = CleanData[inTrain,] #Extract the training set
+Testing = CleanData[-inTrain,] #Extract the testing set
+```
+
+
+Even though I created the partition between testing and training, I ended up not using it since the train function in Caret offers the train Control method where I give the method "CV" (cross-validation with 10 folds - I think this is what it means). Therefore, I train on the entire dataset and not on the partitioned set made above. 
+
+```{r, cache=TRUE}
+modelFit = train(CleanData$classe~.,method="gbm",data=CleanData, trControl = trainControl(method="cv",number=10)) #Train the model using "gbm" - gradient boosted model using classe as the response and all the other variables as predictors in the CleanData dataset. 
+confusionMatrix(predict(modelFit,CleanData),CleanData$classe) #Once the model is fitted, generate the confusion matrix to check the accuracy
+
+```
+
+Finally, load the test data and predict the answers on it.
+```{r}
+testClean = TestData[,(which(sapply(ColsChosen, function(x) length(x)>0)))] #Chose the relevant columns using the ColsChosen variable from the training dataset (see the second knitr chunk)
+TestingClass=predict(modelFit,testClean) #Predict the answers
+```
+
+After getting the predictions, the results are output into individual files using the script given on the project webpage to be uploaded on the submission page:
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(TestingClass)
+
+```
+
